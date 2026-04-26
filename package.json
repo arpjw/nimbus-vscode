@@ -1,0 +1,102 @@
+{
+  "name": "nimbus",
+  "displayName": "nimbus",
+  "description": "Autonomous software engineering from inside your editor",
+  "version": "0.1.0",
+  "publisher": "AryaSomu",
+  "repository": "https://github.com/arpjw/nimbus-vscode",
+  "homepage": "https://get-nimbus.com",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nimbus.run",
+        "title": "Run with Nimbus..."
+      },
+      {
+        "command": "nimbus.reviewPR",
+        "title": "Nimbus: Review PR..."
+      },
+      {
+        "command": "nimbus.runSkill",
+        "title": "Nimbus: Run skill..."
+      },
+      {
+        "command": "nimbus.openDashboard",
+        "title": "Nimbus: Open Dashboard"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "nimbus.run",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nimbus.run",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "nimbus.run"
+        },
+        {
+          "command": "nimbus.reviewPR"
+        },
+        {
+          "command": "nimbus.runSkill"
+        },
+        {
+          "command": "nimbus.openDashboard"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "nimbus.run",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
+      }
+    ],
+    "configuration": {
+      "title": "Nimbus",
+      "properties": {
+        "nimbus.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Nimbus API key (nk_...)"
+        },
+        "nimbus.backendUrl": {
+          "type": "string",
+          "default": "https://api.get-nimbus.com",
+          "description": "Nimbus backend URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "typescript": "^5.3.0"
+  }
+}
