@@ -1,40 +1,16 @@
 import * as https from "https";
 import * as http from "http";
-import { URL } from "url";
-
-interface TaskResponse {
-  id: string;
-  status: string;
-  phase: string;
-  pr_url?: string;
-  error?: string;
-}
-
-interface Skill {
-  name: string;
-  description: string;
-}
-
-interface Repo {
-  id: string;
-  full_name: string;
-}
 
 export class NimbusClient {
   constructor(private baseUrl: string, private apiKey: string) {}
 
-  private request<T>(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<T> {
+  private async request(method: string, path: string, body?: object): Promise<any> {
+    const url = new URL(path, this.baseUrl);
+    const isHttps = url.protocol === "https:";
+    const lib = isHttps ? https : http;
     return new Promise((resolve, reject) => {
-      const url = new URL(path, this.baseUrl);
-      const payload = body !== undefined ? JSON.stringify(body) : undefined;
-      const isHttps = url.protocol === "https:";
-      const lib = isHttps ? https : http;
-
-      const options: http.RequestOptions = {
+      const data = body ? JSON.stringify(body) : undefined;
+      const req = lib.request({
         hostname: url.hostname,
         port: url.port || (isHttps ? 443 : 80),
         path: url.pathname + url.search,
@@ -42,62 +18,68 @@ export class NimbusClient {
         headers: {
           "Content-Type": "application/json",
           "X-API-Key": this.apiKey,
-          ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
+          ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
         },
-      };
-
-      const req = lib.request(options, (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      }, (res) => {
+        let raw = "";
+        res.on("data", (c) => (raw += c));
         res.on("end", () => {
-          const raw = Buffer.concat(chunks).toString();
-          try {
-            resolve(JSON.parse(raw) as T);
-          } catch {
-            reject(new Error(`Invalid JSON response: ${raw}`));
-          }
+          try { resolve(JSON.parse(raw)); }
+          catch { reject(new Error(`Invalid JSON response: ${raw.slice(0, 200)}`)); }
         });
       });
-
       req.on("error", reject);
-      if (payload) {
-        req.write(payload);
-      }
+      if (data) { req.write(data); }
       req.end();
     });
   }
 
-  async submitTask(
-    repoUrl: string,
-    description: string,
-    skillName?: string
-  ): Promise<{ task_id: string }> {
-    return this.request<{ task_id: string }>("POST", "/tasks", {
-      repo_url: repoUrl,
+  async ensureRepo(repoUrl: string): Promise<{ workspace_id: string; repo_id: string }> {
+    // List existing workspaces/repos first
+    const repos = await this.request("GET", "/repos/");
+    if (Array.isArray(repos)) {
+      const existing = repos.find((r: any) =>
+        r.github_url === repoUrl || r.full_name === repoUrl.replace("https://github.com/", "")
+      );
+      if (existing) {
+        return { workspace_id: existing.workspace_id, repo_id: existing.id };
+      }
+    }
+    // Create a workspace
+    const repoName = repoUrl.replace("https://github.com/", "").replace("/", "-");
+    const ws = await this.request("POST", "/workspaces/", { name: repoName });
+    // Register the repo
+    const repo = await this.request("POST", "/repos/", {
+      workspace_id: ws.id,
+      url: repoUrl,
+      name: repoUrl.replace("https://github.com/", "").replace("/", "-"),
+    });
+    return { workspace_id: ws.id, repo_id: repo.id };
+  }
+
+  async submitTask(repoUrl: string, description: string, skillName?: string): Promise<{ task_id: string }> {
+    const { workspace_id, repo_id } = await this.ensureRepo(repoUrl);
+    return this.request("POST", "/tasks/", {
+      workspace_id,
+      repo_id,
       description,
-      skill: skillName,
+      ...(skillName ? { skill: skillName } : {}),
     });
   }
 
-  async getTask(taskId: string): Promise<TaskResponse> {
-    return this.request<TaskResponse>("GET", `/tasks/${taskId}`);
+  async getTask(taskId: string): Promise<{ id: string; status: string; phase: string; pr_url?: string; error?: string }> {
+    return this.request("GET", `/tasks/${taskId}/`);
   }
 
-  async listSkills(): Promise<Skill[]> {
-    return this.request<Skill[]>("GET", "/skills");
+  async listSkills(): Promise<Array<{ name: string; description: string }>> {
+    return this.request("GET", "/skills/");
   }
 
-  async listRepos(): Promise<Repo[]> {
-    return this.request<Repo[]>("GET", "/repos");
+  async listRepos(): Promise<Array<{ id: string; full_name: string }>> {
+    return this.request("GET", "/repos/");
   }
 
-  async reviewPR(
-    prUrl: string
-  ): Promise<{ verdict: string; summary: string }> {
-    return this.request<{ verdict: string; summary: string }>(
-      "POST",
-      "/tasks/review",
-      { pr_url: prUrl }
-    );
+  async reviewPR(prUrl: string): Promise<{ verdict: string; summary: string }> {
+    return this.request("POST", "/tasks/review/", { pr_url: prUrl });
   }
 }
