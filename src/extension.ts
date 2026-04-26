@@ -20,8 +20,23 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.env.openExternal(
         vscode.Uri.parse("https://get-nimbus.com/dashboard")
       )
+    ),
+    vscode.commands.registerCommand("nimbus.openPrism", () =>
+      vscode.env.openExternal(
+        vscode.Uri.parse("https://get-nimbus.com/prism")
+      )
     )
   );
+
+  const statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  statusBarItem.text = "$(robot) Nimbus";
+  statusBarItem.command = "nimbus.run";
+  statusBarItem.tooltip = "Run a Nimbus task";
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
 
   if (!isConfigured()) {
     vscode.window
